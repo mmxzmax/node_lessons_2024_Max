@@ -9,7 +9,3 @@ test.db
 *.sqlite
 .mvn
 node_modules
-
-
-#
-*.js
