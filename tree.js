@@ -1,5 +1,3 @@
-
-
 const lib = {
     folder: '#',
     file: '*',
@@ -50,18 +48,23 @@ function hasChild(obj) {
 
 function drawTree(object) {
     const branches = [];
+
     function treeStr(obj, deep = 0) {
+        if (!object?.hasOwnProperty('name')) return '';
         const isFolder = hasChild(obj);
         let res = (isFolder ? lib.folder : lib.file) + obj?.name + '\n';
         if (isFolder) {
             obj?.items.forEach((item, index) => {
-                const isLast = index < obj.items?.length - 1;
-                branches[deep] = isLast;
-                res += drawLine(deep, isLast, treeStr(item, deep + 1), [...branches]);
+                if (!!item?.hasOwnProperty('name')) {
+                    const isLast = index < obj.items?.length - 1;
+                    branches[deep] = isLast;
+                    res += drawLine(deep, isLast, treeStr(item, deep + 1), [...branches]);
+                }
             });
         }
         return res;
     }
+
     return treeStr(object);
 }
 
