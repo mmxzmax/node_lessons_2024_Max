@@ -6,27 +6,26 @@ const path = require('node:path');
 const SEPARATOR = /\s|\W/gm
 
 class TextSplitTransform extends Transform {
-    lastPart = '';
-
     _transform(chunk, encoding, callback) {
-        const resArray = [];
         const str = chunk.toString();
         try {
-            const words = str.split(SEPARATOR);
-            if (this.lastPart !== '') { // проверяем наличие обрезанных слов в следующем чанке и востанавливаем их с помощь кешированного значения
-                if (/^\W/.test(str)) {
-                    resArray.push(this.lastPart);
-                    resArray.push(...words);
-                } else {
-                    resArray.push(...words);
-                    resArray[0] = this.lastPart + resArray[0];
-                }
-                this.lastPart = '';
-            } else {
-                resArray.push(...words);
-            }
-            this.lastPart = resArray.pop(); //кешируем последнее слово в чанке
-            callback(null, resArray.filter(item => item !== '').map(str => str?.toLowerCase()).join('|'));
+            const words = str.replace(SEPARATOR, '|').replace(/\|\|/gm, '|');
+            callback(null, words);
+        } catch (err) {
+            callback(err);
+        }
+    }
+}
+
+class TextCounterTransform extends Transform {
+    _transform(chunk, encoding, callback) {
+        const data = JSON.parse(chunk.toString());
+        try {
+            callback(null, `[${[...data.reduce((acc, word) => {
+                const item = acc.get(word);
+                acc.set(word, item ? item + 1 : 1);
+                return acc
+            }, new Map()).entries()].map(item => item[1]).join(',')}]`);
         } catch (err) {
             callback(err);
         }
@@ -34,7 +33,6 @@ class TextSplitTransform extends Transform {
 }
 
 async function processText(fileName) {
-    const data = new Map()
     const filePath = path.join(__dirname, fileName);
     const fileBase = path.basename(fileName);
     const resultPath = path.join(path.dirname(filePath), `result_for_${fileBase}`);
@@ -42,16 +40,14 @@ async function processText(fileName) {
         fs.createReadStream(filePath, {encoding: 'utf8'}),
         new TextSplitTransform(),
         async function* (source) {
+            let text = '';
             source.setEncoding('utf8');
             for await (const chunk of source) {
-                const arr = chunk.toString().split('|').filter(item => item !== '');
-                arr.forEach(str => {
-                    const item = data.get(str);
-                    data.set(str, item ? item + 1 : 1);
-                });
+                text += chunk.toString();
             }
-            yield `[${[...data.entries()].sort().map(item => item[1]).join(',')}]`;
+            yield JSON.stringify(text.split('|').filter(word => word !== '').sort());
         },
+        new TextCounterTransform(),
         fs.createWriteStream(resultPath, {encoding: 'utf8'})
     );
     console.log(`file: ${fileBase} Success Processed`);
